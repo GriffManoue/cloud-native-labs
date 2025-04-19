@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: key-value-svc 
+  labels:
+    app: key-value-store
+spec:
+  ports:
+  - port: 5000
+    name: web
+  clusterIP: None 
+  selector:
+    app: key-value-store

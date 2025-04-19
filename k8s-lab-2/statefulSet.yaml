@@ -1,0 +1,44 @@
+# StatefulSet for the key-value store application
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: key-value-svc 
+spec:
+  serviceName: "key-value-svc" 
+  replicas: 4 
+  selector:
+    matchLabels:
+      app: key-value-store 
+  template:
+    metadata:
+      labels:
+        app: key-value-store 
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: key-value-container
+        image: key-value-store-img 
+        imagePullPolicy: Never 
+        ports:
+        - containerPort: 5000
+          name: web
+        env:
+          - name: HEADLESS_SERVICE_NAME
+            value: "key-value-svc"
+          - name: REPLICAS
+            value: "4"
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        volumeMounts:
+        - name: db-storage 
+          mountPath: /db 
+  volumeClaimTemplates:
+  - metadata:
+      name: db-storage 
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Mi 

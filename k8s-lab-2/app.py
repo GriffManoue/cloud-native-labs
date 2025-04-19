@@ -9,44 +9,64 @@ import socket
 from flask import Flask, request, abort
 
 # -------------------------------------------------------------------------
+HEADLESS_SERVICE_NAME = os.environ.get("HEADLESS_SERVICE_NAME", "key-value-svc")
+REPLICAS = int(os.environ.get("REPLICAS", 4)) 
+NAMESPACE_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+DB_DIR = "/db"
+DB_FILE = os.path.join(DB_DIR, "a.json")
 
-def own_name():
-    """Return to the name of the pod in which the server instace is running."""
-    # TODO: Implement it using self-awarness patterns.
-    return name
 
 def get_namespace():
-    """Return to the namespace in which the server instace is running."""
-    # TODO: Implement it using self-awarness patterns.
-    return name
+    """Return to the namespace in which the server instance is running."""
+    try:
+        with open(NAMESPACE_PATH, 'r') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        print(f"Warning: Namespace file not found at {NAMESPACE_PATH}. Falling back to 'default'.")
+        return os.environ.get("POD_NAMESPACE", "default") 
+
+NAMESPACE = get_namespace()
+
+def own_name():
+    """Return the name of the pod in which the server instance is running."""
+    return socket.gethostname()
 
 def pod_names():
-    """Return pod names of the deployment."""
-    # TODO
+    """Return pod names of the deployment based on StatefulSet naming convention."""
+    statefulset_name = HEADLESS_SERVICE_NAME
+    names = [f"{statefulset_name}-{i}" for i in range(REPLICAS)]
     return names
 
 def remote_addr(pod_name):
     """
-    Return the fully qualified domain name or the IP address of POD_NAME.
+    Return the fully qualified domain name (FQDN) of POD_NAME.
     POD_NAME is a member of the list returned by pod_names().
+    The FQDN is resolvable within the Kubernetes cluster thanks to the headless service.
     """
-    # TODO
-    return addr
+    return f"{pod_name}.{HEADLESS_SERVICE_NAME}.{NAMESPACE}.svc.cluster.local"
 
 def load_db():
-    """Load the database (a dict object) from hard disk."""
-    # TODO: Modify the code if necessary
+    """Load the database (a dict object) from the persistent volume."""
     try:
-        with open('/db/a.json') as f:
+        os.makedirs(DB_DIR, exist_ok=True) 
+        with open(DB_FILE) as f:
             return json.load(f)
     except FileNotFoundError:
+        print(f"Database file {DB_FILE} not found, starting with empty DB.")
+        return {}
+    except json.JSONDecodeError:
+        print(f"Error decoding JSON from {DB_FILE}, starting with empty DB.") 
         return {}
     
 def save_db(db):
-    """Save the database (a dict object) to hard disk."""
-    # TODO: Modify the code if necessary
-    with open('/db/a.json', 'w') as f:
-        return json.dump(db, f)
+    """Save the database (a dict object) to the persistent volume."""
+    os.makedirs(DB_DIR, exist_ok=True)
+    try:
+        with open(DB_FILE, 'w') as f:
+            json.dump(db, f, indent=4)
+    except IOError as e:
+        print(f"Error saving database to {DB_FILE}: {e}")
+
 
 # -------------------------------------------------------------------------
 # Do not modify anything below this line
