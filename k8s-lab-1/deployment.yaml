@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-frontend
+spec:
+  selector:
+    app: frontend
+    task: task-health 
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 5000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+      task: task-health 
+  template:
+    metadata:
+      labels:
+        app: frontend
+        task: task-health 
+    spec:
+      containers:
+      - name: server
+        image: frontend
+        imagePullPolicy: Never
+        command: ["python"]
+        args: [
+          "-m", "flask", "--debug", "--app", "./app.py", "run", '--host=0.0.0.0'
+        ]
+        ports:
+        - containerPort: 5000    
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+
+        lifecycle:
+          preStop:
+            exec:
+              command: ["curl", "http://localhost:5000/shutdown"]
+
+        startupProbe:
+          httpGet:
+            path: /startup    
+            port: 5000        
+          periodSeconds: 10    
+          timeoutSeconds: 20
+          failureThreshold: 30
+
+        livenessProbe:
+          httpGet:
+            path: /health    
+            port: 5000       
+          periodSeconds: 5    
+          failureThreshold: 3 
+          initialDelaySeconds: 15 
+          timeoutSeconds: 3     
+          successThreshold: 1 
